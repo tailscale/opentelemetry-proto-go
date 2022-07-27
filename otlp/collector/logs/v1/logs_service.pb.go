@@ -21,7 +21,7 @@
 package v1
 
 import (
-	v1 "go.opentelemetry.io/proto/otlp/logs/v1"
+	v1 "github.com/tailscale/opentelemetry-proto-go/otlp/logs/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
