@@ -43,7 +43,7 @@ PROTO_SOURCE_DIR   := $(GEN_TEMP_DIR)/proto
 SOURCE_PROTO_FILES := $(subst $(OTEL_PROTO_SUBMODULE),$(PROTO_SOURCE_DIR),$(SUBMODULE_PROTO_FILES))
 GO_MOD_ROOT		   := go.opentelemetry.io/proto
 OTLP_OUTPUT_DIR    := otlp
-GO_VERSION         := 1.14
+GO_VERSION         := 1.17
 
 # Function to execute a command. Note the empty line before endef to make sure each command
 # gets executed separately instead of concatenated with previous one.
@@ -53,7 +53,7 @@ $(1)
 
 endef
 
-OTEL_DOCKER_PROTOBUF ?= otel/build-protobuf:0.11.0
+OTEL_DOCKER_PROTOBUF ?= otel/build-protobuf:0.23.0
 PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${OTEL_DOCKER_PROTOBUF} --proto_path="$(PROTO_SOURCE_DIR)"
 
 .DEFAULT_GOAL := protobuf
@@ -108,17 +108,13 @@ gen-otlp-protobuf: $(SOURCE_PROTO_FILES)
 
 .PHONY: copy-otlp-protobuf
 copy-otlp-protobuf:
-	rm -rf ./$(OTLP_OUTPUT_DIR)
-	mkdir -p ./$(OTLP_OUTPUT_DIR)
+	rm -rf ./$(OTLP_OUTPUT_DIR)/*/
 	@rsync -a $(PROTOBUF_TEMP_DIR)/go.opentelemetry.io/proto/otlp/ ./$(OTLP_OUTPUT_DIR)
-	cd ./$(OTLP_OUTPUT_DIR) \
-		&& go mod init $(GO_MOD_ROOT)/$(OTLP_OUTPUT_DIR) \
-		&& go mod edit -go=$(GO_VERSION) \
-		&& go mod tidy
+	cd ./$(OTLP_OUTPUT_DIR)	&& go mod tidy
 
 .PHONY: clean
 clean:
-	rm -rf $(GEN_TEMP_DIR) $(OTLP_OUTPUT_DIR)
+	rm -rf $(GEN_TEMP_DIR) $(OTLP_OUTPUT_DIR)/*/
 
 .PHONY: check-clean-work-tree
 check-clean-work-tree:
@@ -159,7 +155,11 @@ verify-versions: | $(MULTIMOD)
 	$(MULTIMOD) verify
 
 COMMIT ?= "HEAD"
-.PHONY: add-tags
-add-tags: | $(MULTIMOD)
-	@[ "${MODSET}" ] || ( echo "MODSET unset: set to taget module set from versions.yaml"; exit 1 )
-	$(MULTIMOD) verify && $(MULTIMOD) tag -m ${MODSET} -c ${COMMIT}
+REMOTE ?= upstream
+.PHONY: push-tags
+push-tags: | $(MULTIMOD)
+	$(MULTIMOD) verify
+	set -e; for tag in `$(MULTIMOD) tag -m all -c ${COMMIT} --print-tags | grep -v "Using" `; do \
+		echo "pushing tag $${tag}"; \
+		git push ${REMOTE} $${tag}; \
+	done;
